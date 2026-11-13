@@ -17,6 +17,13 @@ already running browser call.
 Android microphone capture is optional and requires an external
 scrcpy version 2.3 or later, FFmpeg with PulseAudio output support, and adb.
 The application does not bundle these programs or a web browser.
+.PP
+The open window observes its own capture processes and records state
+changes in a private event log. Automatic microphone restart is blocked
+while the call's mute state is unknown. The explicit privacy pause stops
+only owned producers, keeps routes and modules, and never removes mute.
+Changes of default routes and ordinary reconnect are refused while a
+capture client is active.
 .SH OPTIONS
 .TP
 .B --version

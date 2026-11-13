@@ -383,6 +383,47 @@ def stop():
     print("Processos próprios encerrados; apenas módulos criados por esta sessão foram removidos.")
 
 
+def privacy_pause():
+    data = load_state()
+    if not data:
+        print("Nenhuma captura própria para pausar.")
+        return
+    data["privacy_latched"] = True
+    save_state(data)
+    remaining = []
+    errors = []
+    for process in reversed(data["processes"]):
+        try:
+            stop_process(process)
+        except (SessionError, OSError) as exc:
+            remaining.append(process)
+            errors.append(str(exc))
+    data["processes"] = list(reversed(remaining))
+    save_state(data)
+    if errors:
+        raise SessionError("Pausa de privacidade incompleta: " + "; ".join(errors))
+    print("Captura própria pausada. Fontes e rotas preservadas; nenhum mute foi removido.")
+
+
+def observe():
+    data = load_state()
+    if not data:
+        status()
+        return
+    observation = {process["role"]: identity(process["pid"]) == process["start"]
+                   for process in data["processes"]}
+    observation["privacy_latched"] = bool(data.get("privacy_latched"))
+    if observation != data.get("last_observed"):
+        event = {"time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                 "processes": observation, "automatic_restart": False,
+                 "call_mute": "unknown"}
+        with (Path(data["runtime"]) / "events.jsonl").open("a") as stream:
+            stream.write(json.dumps(event) + "\n")
+        data["last_observed"] = observation
+        save_state(data)
+    status()
+
+
 def status():
     data = load_state()
     if not data:
@@ -390,12 +431,16 @@ def status():
         return
     live = sum(identity(process["pid"]) == process["start"] for process in data["processes"])
     print(f"Processos próprios ativos: {live}/{len(data['processes'])}.")
-    print("Estado: " + ("em execução; sinal de voz ainda requer teste." if live == 2 else "limpeza ou reconexão pendente."))
+    if data.get("privacy_latched"):
+        print("Privacidade: pausa solicitada." if live else "Privacidade: captura pausada.")
+    else:
+        print("Estado: " + ("em execução; sinal de voz ainda requer teste." if live == 2 else "captura interrompida; causa ainda precisa de diagnóstico."))
+    print("Reinício automático bloqueado: mute da chamada desconhecido.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("check", "status", "start", "stop", "reconnect"))
+    parser.add_argument("action", choices=("check", "status", "observe", "start", "stop", "reconnect", "privacy-pause"))
     parser.add_argument("--serial", help="Serial ADB já autorizado; não executa pareamento.")
     parser.add_argument("--scrcpy", help="Executável externo do scrcpy; padrão: PATH.")
     args = parser.parse_args()
@@ -409,14 +454,22 @@ def main():
             print("\n".join(browser_status()))
         elif args.action == "status":
             status()
+        elif args.action == "observe" and not STATE.exists():
+            status()
         else:
             with locked():
                 if args.action == "start":
                     start(args.serial, args.scrcpy)
                 elif args.action == "stop":
                     stop()
+                elif args.action == "privacy-pause":
+                    privacy_pause()
+                elif args.action == "observe":
+                    observe()
                 else:
                     data = load_state()
+                    if data and data.get("privacy_latched"):
+                        raise SessionError("Pausa de privacidade ativa. Encerre a sessão fora da captura e use Conectar explicitamente; não haverá retomada automática.")
                     serial = args.serial or (data["serial"] if data else None)
                     path = args.scrcpy or (data["scrcpy"] if data else None)
                     requirements(path)

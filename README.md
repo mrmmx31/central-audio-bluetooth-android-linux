@@ -91,6 +91,14 @@ Estado privado do usuário: $XDG_STATE_HOME/central-gtk2-audio, ou ~/.local/stat
 
 O bloco OBEX é separado dos controles de áudio. Consulta ferramentas e serviços locais; não inicia pareamento nem transferência e não confirma suporte no Android. O teste de envio/recepção de arquivos continua pendente.
 
+## Supervisão e privacidade
+
+Enquanto a janela estiver aberta, a central acompanha seus processos a cada três segundos e registra mudanças em um log privado de eventos. A presença ou ausência de um processo não determina a causa de uma queda; o log de erro da sessão deve ser analisado antes de atribuí-la ao ADB, Wi-Fi ou áudio.
+
+**Pausar captura · privacidade** encerra explicitamente apenas os produtores próprios, mesmo se houver uma chamada usando a fonte. Mantém as fontes e rotas e não desmuta dispositivos. A pausa trava qualquer retomada implícita: depois de encerrar a captura da chamada, desconecte a sessão e use Conectar explicitamente para começar outra.
+
+O mute da chamada no Chromium/ChatGPT não é exposto de forma confiável pelo estado de mute do PulseAudio. Por isso, **o reinício automático da captura fica bloqueado enquanto o mute da chamada for desconhecido**. A versão atual monitora e permite recuperação explícita protegida; ainda não entrega recuperação automática segura durante uma chamada. Essa função exige uma integração confiável com o estado de privacidade da chamada e continua pendente. Não existe reinício em loop ou ação que remova mute por conta própria.
+
 ## Testes e limites
 
 ~~~sh

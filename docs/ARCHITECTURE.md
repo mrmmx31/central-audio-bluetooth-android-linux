@@ -35,3 +35,11 @@ A inspeção distingue playback (sink-input) de captura (source-output). Fluxos 
 A central detecta executáveis e versões externos; não cria fork do Chromium, copia perfis nem injeta configurações no navegador. Instalar outro navegador não cria o barramento nem seleciona o microfone de uma chamada já aberta.
 
 A seleção da fonte, permissão de microfone do site e início de uma nova captura continuam no navegador. Firefox ESR é alternativa a avaliar com o aplicativo de chamada escolhido; não foi declarada equivalência de todas as funções ou sites.
+
+## Supervisão sem retomada implícita
+
+O observador da janela consulta as identidades dos processos próprios e registra apenas mudanças de estado em events.jsonl. Não lê amostras do microfone, inicia filhos ou altera mute. Uma saída de processo é observação de falha, não prova de sua causa. Logs de stderr permanecem na pasta privada da sessão.
+
+O estado de mute do site pode existir apenas na camada WebRTC e não coincidir com mute/cork do stream PulseAudio. Não há nesta versão uma API confiável de mute da chamada. A recuperação automática é, portanto, bloqueada por projeto, inclusive após mute/desmute desconhecido. Um futuro sinal de privacidade precisará ser explícito, autenticado e atualizado; ausência/expiração do sinal deve impedir captura, sem supor consentimento.
+
+A pausa de privacidade é uma ação explícita distinta da limpeza: interrompe produtores próprios e mantém os módulos usados pela chamada. O latch salvo impede reconexão implícita. A central nunca usa uma queda do stream ou remoção de mute como autorização para retomar o microfone.

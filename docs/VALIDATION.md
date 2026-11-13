@@ -12,6 +12,8 @@ Este documento descreve o escopo de validação da versão 0.1.0 e deve acompanh
 
 Resultados numéricos e links de CI ficam nas notas da release; não se deve inferir aprovação a partir desta lista de escopo.
 
+Na preparação local desta versão, 57 testes isolados passaram. Uma janela real GTK2 foi capturada em Xvfb privado com dados simulados; a autenticação própria foi verificada também por recusa de um cliente sem o cookie. Isso não é um teste do áudio do usuário.
+
 ## Inspeção visual
 
 A referência é reference/central-audio-proposta.svg, aprovada pelo usuário. A janela mantém alerta de eco, entrada/saída lado a lado, conexão scrcpy, restauração e OBEX separado. Os controles funcionais acrescentam aplicação explícita, serial ADB e verificação de dependências. Estados do mockup não são copiados como se fossem medições.
@@ -33,5 +35,6 @@ Serviços locais Bluetooth e OBEX foram observados ativos. Isso não comprova tr
 - Escolha efetiva de Microfone_Tablet em uma nova chamada Chromium e em alternativa Firefox.
 - Eco acústico e volumes percebidos.
 - Pareamento e transferência de arquivos OBEX.
+- Integração confiável com mute da chamada para permitir recuperação automática. Na ausência dessa integração, a retomada automática está bloqueada; supervisão e pausa não são prova de recuperação automática implementada.
 
 O .deb e o CI não substituem essas verificações.

@@ -22,6 +22,7 @@ typedef struct {
     GPtrArray *sources, *sinks;
     gchar *helper, *tablet;
     gboolean updating, audio_ok, capture_active;
+    guint monitor_id;
 } App;
 
 static gboolean command(gchar **argv, gchar **output, gchar **problem) {
@@ -239,7 +240,7 @@ static gboolean active_capture(void) {
 
 static void scrcpy_query(App *app) {
     gchar *out = NULL, *problem = NULL;
-    if (session_command(app, "status", &out, &problem)) {
+    if (session_command(app, "observe", &out, &problem)) {
         gchar *text = g_strdup_printf("%s\n%s", out,
             app->tablet ? "Fonte do tablet disponível; voz ainda requer teste." : "Fonte do tablet não detectada neste contexto.");
         gtk_label_set_text(GTK_LABEL(app->scrcpy_state), text);
@@ -247,6 +248,11 @@ static void scrcpy_query(App *app) {
     } else gtk_label_set_text(GTK_LABEL(app->scrcpy_state), problem ? problem : "Estado indisponível.");
     g_free(out);
     g_free(problem);
+}
+
+static gboolean monitor_tick(gpointer data) {
+    scrcpy_query(data);
+    return TRUE;
 }
 
 static void refresh(App *app) {
@@ -433,6 +439,7 @@ static void connect_clicked(GtkButton *button, gpointer data) { session_action(d
 static void disconnect_clicked(GtkButton *button, gpointer data) { session_action(data, "stop"); (void)button; }
 static void reconnect_clicked(GtkButton *button, gpointer data) { session_action(data, "reconnect"); (void)button; }
 static void dependencies_clicked(GtkButton *button, gpointer data) { session_action(data, "check"); (void)button; }
+static void privacy_clicked(GtkButton *button, gpointer data) { session_action(data, "privacy-pause"); (void)button; }
 
 static void obex_clicked(GtkButton *button, gpointer data) {
     App *app = data;
@@ -618,6 +625,8 @@ int main(int argc, char **argv) {
     gtk_box_pack_start(GTK_BOX(connection_actions), connection_buttons, FALSE, FALSE, 0);
     GtkWidget *dependencies = action_button("Verificar dependências", G_CALLBACK(dependencies_clicked), app);
     gtk_box_pack_start(GTK_BOX(connection_actions), dependencies, FALSE, FALSE, 0);
+    GtkWidget *privacy = action_button("Pausar captura · privacidade", G_CALLBACK(privacy_clicked), app);
+    gtk_box_pack_start(GTK_BOX(connection_actions), privacy, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(connection), connection_actions, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page), panel(connection, "#fafafa"), FALSE, FALSE, 0);
 
@@ -648,7 +657,9 @@ int main(int argc, char **argv) {
     g_signal_connect(app->sink_combo, "changed", G_CALLBACK(output_changed), app);
     gtk_widget_show_all(app->window);
     refresh(app);
+    app->monitor_id = g_timeout_add_seconds(3, monitor_tick, app);
     gtk_main();
+    if (app->monitor_id) g_source_remove(app->monitor_id);
     g_ptr_array_free(app->sources, TRUE);
     g_ptr_array_free(app->sinks, TRUE);
     g_free(app->tablet);

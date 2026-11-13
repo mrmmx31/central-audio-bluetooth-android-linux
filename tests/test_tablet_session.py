@@ -459,6 +459,161 @@ class TabletSessionTests(unittest.TestCase):
         self.assert_no_session()
         self.assertEqual(self.pa_mutations(), [])
 
+    def supervision_state(self, processes):
+        """Private valid state backed by owned sleepers, with no audio input."""
+        self.state_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        runtime = self.state_directory / "session-observer-fixture"
+        runtime.mkdir(mode=0o700)
+        token = "a" * 32
+        (runtime / "owner").write_text(token + "\n")
+        data = {"version": 1, "token": token, "runtime": str(runtime), "serial": SERIAL,
+                "scrcpy": str(self.bin / "scrcpy"), "processes": processes,
+                "modules": [], "pending_modules": []}
+        self.helper.save_state(data)
+        return data
+
+    @contextlib.contextmanager
+    def forbid_capture_boundaries(self):
+        """Fail immediately if a privacy/observer action probes or starts audio."""
+        with contextlib.ExitStack() as stack:
+            for boundary in ("pa", "run", "requirements", "start", "guard"):
+                stack.enter_context(mock.patch.object(
+                    self.helper, boundary, side_effect=AssertionError(f"forbidden boundary: {boundary}")))
+            stack.enter_context(mock.patch.object(
+                self, "track_popen", side_effect=AssertionError("privacy/observer action attempted Popen")))
+            yield
+
+    def test_observe_without_session_is_readonly_and_never_starts_or_probes_audio(self):
+        with self.forbid_capture_boundaries(), mock.patch.object(
+                self.helper, "stop_process", side_effect=AssertionError("observer attempted to stop a process")):
+            self.invoke("observe")
+            self.invoke("observe")
+        self.assertFalse(self.state_directory.exists())
+        self.assertEqual(self.events(), [])
+        self.assertEqual(self.children, [])
+
+    def test_observe_logs_only_process_changes_and_never_restarts_failed_capture(self):
+        consumer, consumer_stamp = self.owned_sleeper()
+        producer, producer_stamp = self.owned_sleeper()
+        records = [{"pid": consumer.pid, "start": consumer_stamp, "role": "ffmpeg"},
+                   {"pid": producer.pid, "start": producer_stamp, "role": "scrcpy"}]
+        data = self.supervision_state(records)
+        log = Path(data["runtime"]) / "events.jsonl"
+        with self.forbid_capture_boundaries(), mock.patch.object(
+                self.helper, "stop_process", side_effect=AssertionError("observer attempted to stop a process")):
+            self.invoke("observe")
+            self.invoke("observe")
+            first = [json.loads(line) for line in log.read_text().splitlines()]
+            self.assertEqual(len(first), 1, "unchanged observations must not append duplicate events")
+            # Terminate only our inert test children. Observation must report
+            # their disappearance without recovering or unmuting anything.
+            consumer.terminate()
+            producer.terminate()
+            consumer.wait(timeout=5)
+            producer.wait(timeout=5)
+            stdout, _ = self.invoke("observe")
+            self.invoke("observe")
+        entries = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0]["processes"], {"ffmpeg": True, "scrcpy": True, "privacy_latched": False})
+        self.assertEqual(entries[1]["processes"], {"ffmpeg": False, "scrcpy": False, "privacy_latched": False})
+        for event in entries:
+            self.assertEqual(set(event), {"time_utc", "processes", "automatic_restart", "call_mute"})
+            self.assertIs(event["automatic_restart"], False)
+            self.assertEqual(event["call_mute"], "unknown")
+            self.assertRegex(event["time_utc"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        self.assertNotIn(SERIAL, log.read_text())
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(Path(data["runtime"]).stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.session()["processes"], records)
+        self.assertIn("Reinício automático bloqueado", stdout)
+        self.assertIn("mute da chamada desconhecido", stdout)
+        self.assertEqual(self.events(), [])
+        self.assertEqual(len(self.children), 2)
+
+    def test_status_reports_unknown_call_mute_and_automatic_restart_block(self):
+        self.supervision_state([])
+        with self.forbid_capture_boundaries():
+            stdout, _ = self.invoke("status")
+        self.assertIn("Reinício automático bloqueado", stdout)
+        self.assertIn("mute da chamada desconhecido", stdout)
+        self.assertEqual(self.events(), [])
+
+    def test_privacy_pause_stops_only_owned_processes_during_active_capture(self):
+        data = self.start()
+        state = self.server()
+        state["source_outputs"] = [[5, 32, 77, "fake-call-client"]]
+        self.write_server(state)
+        expected_modules = copy.deepcopy(state["modules"])
+        expected_sinks = copy.deepcopy(state["sinks"])
+        expected_sources = copy.deepcopy(state["sources"])
+        route_snapshot = self.state_directory / "routes.tsv"
+        level_snapshot = self.state_directory / "levels.tsv"
+        route_snapshot.write_text("route-state-sentinel\n")
+        level_snapshot.write_text("level-state-sentinel\n")
+        before_calls = self.pa_calls()
+        with self.forbid_capture_boundaries():
+            self.invoke("privacy-pause")
+            self.invoke("privacy-pause")
+        paused = self.session()
+        self.assertIs(paused["privacy_latched"], True)
+        self.assertEqual(paused["processes"], [])
+        self.assertEqual(paused["modules"], data["modules"])
+        self.assertEqual(paused["token"], data["token"])
+        self.assertTrue(Path(data["runtime"]).exists())
+        self.assertTrue(all(child.poll() is not None for child in self.children))
+        self.assertEqual(self.pa_calls(), before_calls, "privacy pause must not query or change pactl state")
+        remaining = self.server()
+        self.assertEqual(remaining["modules"], expected_modules)
+        self.assertEqual(remaining["sinks"], expected_sinks)
+        self.assertEqual(remaining["sources"], expected_sources)
+        self.assertEqual(remaining["source_outputs"], state["source_outputs"])
+        self.assertEqual(remaining["streams"], [])
+        self.assertEqual(route_snapshot.read_text(), "route-state-sentinel\n")
+        self.assertEqual(level_snapshot.read_text(), "level-state-sentinel\n")
+
+    def test_privacy_latch_blocks_reconnect_before_requirements_or_capture_actions(self):
+        self.supervision_state([])
+        with self.forbid_capture_boundaries():
+            self.invoke("privacy-pause")
+            snapshot = self.state_file.read_bytes()
+            _, stderr = self.invoke("reconnect", "--serial", "DO-NOT-START", "--scrcpy", "/forbidden/executable", success=False)
+        self.assertIn("privacidade", stderr.lower())
+        self.assertEqual(self.state_file.read_bytes(), snapshot)
+        self.assertIs(self.session()["privacy_latched"], True)
+        self.assertEqual(self.events(), [])
+        self.assertEqual(self.children, [])
+
+    def test_privacy_pause_keeps_mismatched_pid_identity_and_latches_failure(self):
+        process, stamp = self.owned_sleeper()
+        record = {"pid": process.pid, "start": str(int(stamp) + 1), "role": "scrcpy"}
+        self.supervision_state([record])
+        with self.forbid_capture_boundaries():
+            _, stderr = self.invoke("privacy-pause", success=False)
+            snapshot = self.state_file.read_bytes()
+            self.invoke("reconnect", success=False)
+        self.assertIn("incompleta", stderr.lower())
+        self.assertIsNone(process.poll())
+        self.assertEqual(self.session()["processes"], [record])
+        self.assertIs(self.session()["privacy_latched"], True)
+        self.assertEqual(self.state_file.read_bytes(), snapshot)
+        self.assertEqual(self.events(), [])
+
+    def test_observe_records_privacy_latch_without_restarting_or_unmuting(self):
+        data = self.supervision_state([])
+        with self.forbid_capture_boundaries():
+            self.invoke("observe")
+            self.invoke("privacy-pause")
+            stdout, _ = self.invoke("observe")
+            self.invoke("observe")
+        entries = [json.loads(line) for line in (Path(data["runtime"]) / "events.jsonl").read_text().splitlines()]
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0]["processes"], {"privacy_latched": False})
+        self.assertEqual(entries[1]["processes"], {"privacy_latched": True})
+        self.assertTrue(all(event["automatic_restart"] is False and event["call_mute"] == "unknown" for event in entries))
+        self.assertIn("captura pausada", stdout)
+        self.assertEqual(self.events(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@ Source: central-audio
 Section: sound
 Priority: optional
 Maintainer: central-audio-bluetooth-android-linux contributors <139496073+mrmmx31@users.noreply.github.com>
-Build-Depends: debhelper-compat (= 13), libgtk2.0-dev, pkgconf, python3
+Build-Depends: debhelper-compat (= 13), libgtk2.0-dev (>= 2.24), pkgconf, python3
 Standards-Version: 4.7.4
 Rules-Requires-Root: no
 Homepage: https://github.com/mrmmx31/central-audio-bluetooth-android-linux
@@ -11,7 +11,7 @@ Vcs-Git: https://github.com/mrmmx31/central-audio-bluetooth-android-linux.git
 
 Package: central-audio
 Architecture: amd64
-Depends: ${shlibs:Depends}, ${misc:Depends}, python3, pulseaudio-utils, mawk | awk
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3, pulseaudio-utils
 Suggests: scrcpy (>= 2.3), ffmpeg, adb, chromium | firefox-esr, procps
 Description: GTK2 audio controls with optional Android microphone capture
  Inspect PulseAudio-compatible sources and sinks, select defaults for new
