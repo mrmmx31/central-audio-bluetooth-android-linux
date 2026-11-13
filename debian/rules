@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: GPL-2.0-only
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+
+%:
+	dh $@
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	python3 -m unittest discover -s tests -v
+endif
+
+override_dh_auto_install:
+	install -d debian/central-audio/usr/lib/central-audio
+	install -m 0755 audio-center audio-route.sh tablet-session.py debian/central-audio/usr/lib/central-audio/
+	install -D -m 0755 debian/central-audio-wrapper debian/central-audio/usr/bin/central-audio
+	install -D -m 0644 debian/central-audio.desktop debian/central-audio/usr/share/applications/central-audio.desktop

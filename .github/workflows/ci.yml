@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: GPL-2.0-only
+name: Debian package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Debian ${{ matrix.suite }} amd64
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [trixie, sid]
+    env:
+      DEBIAN_IMAGE: debian:${{ matrix.suite }}-slim
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Archive the matching source
+        run: |
+          mkdir -p artifacts
+          git archive --format=tar.gz --prefix=central-audio/ \
+            --output=artifacts/central-audio-source.tar.gz HEAD
+
+      - name: Test and build in the official Debian image
+        run: |
+          docker run --rm -i --platform linux/amd64 \
+            -v "$PWD:/work" -w /work \
+            -e DEBIAN_FRONTEND=noninteractive \
+            "$DEBIAN_IMAGE" bash -euo pipefail <<'BUILD'
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential lintian desktop-file-utils
+          apt-get build-dep -y --no-install-recommends .
+          python3 -m unittest discover -s tests -v
+          desktop-file-validate debian/central-audio.desktop
+          # The isolated tests just ran; do not run them twice during this build.
+          DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -b -us -uc
+          package=/central-audio_0.1.0-1_amd64.deb
+          test "$(dpkg-deb --field "$package" Architecture)" = amd64
+          dpkg-deb --info "$package"
+          dpkg-deb --contents "$package"
+          lintian --fail-on error "$package"
+          cp "$package" artifacts/
+          cp /central-audio_0.1.0-1_amd64.buildinfo /central-audio_0.1.0-1_amd64.changes artifacts/
+          BUILD
+
+      - name: Install and remove in a clean Debian container
+        run: |
+          docker run --rm -i --platform linux/amd64 \
+            -v "$PWD/artifacts:/packages:ro" \
+            -e DEBIAN_FRONTEND=noninteractive \
+            "$DEBIAN_IMAGE" bash -euo pipefail <<'SMOKE'
+          apt-get update
+          apt-get install -y --no-install-recommends /packages/central-audio_0.1.0-1_amd64.deb
+          test "$(dpkg-query -W -f='${Architecture}' central-audio)" = amd64
+          test -x /usr/lib/central-audio/audio-center
+          test -x /usr/lib/central-audio/audio-route.sh
+          test -x /usr/lib/central-audio/tablet-session.py
+          for program in scrcpy ffmpeg adb chromium firefox-esr; do
+            if command -v "$program" >/dev/null 2>&1; then
+              printf 'Unexpected optional executable: %s\n' "$program" >&2
+              exit 1
+            fi
+          done
+          cd /tmp
+          central-audio --version
+          /usr/lib/central-audio/audio-route.sh --help
+          /usr/lib/central-audio/tablet-session.py --help
+          apt-get remove -y central-audio
+          test ! -e /usr/bin/central-audio
+          test ! -e /usr/lib/central-audio/audio-center
+          test ! -e /usr/share/applications/central-audio.desktop
+          SMOKE
+
+      - name: Upload package and matching source
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: central-audio-${{ matrix.suite }}-amd64
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14

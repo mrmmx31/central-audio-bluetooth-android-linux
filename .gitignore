@@ -1,0 +1,16 @@
+/audio-center
+/__pycache__/
+/tests/__pycache__/
+/build/
+/dist/
+/artifacts/
+/reference/*.png
+/.agents/
+/.codex/
+/.aws/
+/.git/
+/*.deb
+/*.buildinfo
+/*.changes
+/*.dsc
+/*.tar.*

@@ -1,0 +1,6 @@
+central-audio (0.1.0-1) unstable; urgency=medium
+
+  * Initial local package for Debian 13 amd64.
+  * Keep Android capture tools and web browsers external and optional.
+
+ -- central-audio-bluetooth-android-linux contributors <139496073+mrmmx31@users.noreply.github.com>  Fri, 13 Nov 2026 00:00:00 +0000

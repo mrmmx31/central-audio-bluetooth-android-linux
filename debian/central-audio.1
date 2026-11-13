@@ -1,0 +1,39 @@
+.\" SPDX-License-Identifier: GPL-2.0-only
+.TH CENTRAL-AUDIO 1 "November 2026" "central-audio 0.1.0" "User Commands"
+.SH NAME
+central-audio \- inspect and control audio devices with a GTK2 interface
+.SH SYNOPSIS
+.B central-audio
+.br
+.B central-audio --version
+.SH DESCRIPTION
+.B central-audio
+lists sources and sinks on a running PulseAudio-compatible server.
+It offers controls for default devices, volume, and restoration of saved
+changes.
+Changing a default device does not confirm the device selected in an
+already running browser call.
+.PP
+Android microphone capture is optional and requires an external
+scrcpy version 2.3 or later, FFmpeg with PulseAudio output support, and adb.
+The application does not bundle these programs or a web browser.
+.SH OPTIONS
+.TP
+.B --version
+Print the application version without opening the graphical interface.
+.SH FILES
+.TP
+.I $XDG_STATE_HOME/central-gtk2-audio/
+Private application state. When XDG_STATE_HOME is unset, the base directory
+is the user's .local/state directory.
+.SH SEE ALSO
+.BR pactl (1),
+.BR scrcpy (1),
+.BR ffmpeg (1),
+.BR adb (1)
+.SH AUTHORS
+central-audio-bluetooth-android-linux contributors.
+.SH BUGS
+Report issues at
+.UR https://github.com/mrmmx31/central-audio-bluetooth-android-linux/issues
+.UE .

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Central Audio
+Name[pt_BR]=Central de Áudio
+Comment=Control audio devices and optionally capture an Android microphone
+Comment[pt_BR]=Controle o áudio e capture opcionalmente o microfone de um Android
+Exec=central-audio
+TryExec=central-audio
+Icon=audio-input-microphone
+Terminal=false
+StartupNotify=true
+Categories=AudioVideo;Audio;Mixer;GTK;
+Keywords=audio;microphone;tablet;PulseAudio;scrcpy;
+Keywords[pt_BR]=áudio;microfone;tablet;PulseAudio;scrcpy;

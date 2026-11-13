@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="850" viewBox="0 0 1000 850" role="img" aria-labelledby="title desc">
+<title id="title">Proposta visual — Central de áudio</title><desc id="desc">Mockup estático de aplicativo GTK2 com seleção de microfone, saída, conexão scrcpy, recuperação de perfil e seção separada de transferência Bluetooth indisponível.</desc>
+<defs><style>text{font-family:Arial,sans-serif;fill:#27313b}.heading{font-size:23px;font-weight:bold}.sub{font-size:14px;fill:#576574}.label{font-size:16px;font-weight:bold}.body{font-size:15px}.small{font-size:13px;fill:#576574}.card{fill:#fafafa;stroke:#b6bec5;stroke-width:1}.button{fill:#e8ebed;stroke:#9ba5ae}.muted{fill:#737e88}</style></defs>
+<rect width="1000" height="850" fill="#dfe4e8"/>
+<rect x="30" y="25" width="940" height="800" rx="7" fill="#f0f0ed" stroke="#7e8993"/>
+<path d="M37 25H963Q970 25 970 32V65H30V32Q30 25 37 25" fill="#4a6175"/>
+<text x="50" y="51" font-size="17" fill="white" style="fill:white">Central de áudio</text><text x="938" y="51" font-size="21" style="fill:white">×</text>
+<text x="56" y="103" class="heading">Áudio do tablet e notebook</text>
+<rect x="733" y="81" width="209" height="29" rx="4" fill="#e2e7ec" stroke="#b0bbc5"/><text x="748" y="101" class="small">PROPOSTA · GTK2</text>
+<text x="56" y="130" class="sub">Mockup estático para revisão. Estados e controles abaixo são ilustrativos.</text>
+<rect x="56" y="151" width="886" height="74" rx="4" fill="#fff4d7" stroke="#d4b05a"/>
+<text x="74" y="179" class="label">!  Atenção ao eco</text><text x="74" y="204" class="body">Ao usar o microfone do tablet, prefira fones ou reduza o volume dos alto-falantes.</text>
+<rect x="56" y="243" width="429" height="193" rx="4" class="card"/>
+<text x="76" y="273" class="label">Microfone</text><text x="76" y="300" class="small">Escolha a origem da captação</text>
+<circle cx="87" cy="329" r="8" fill="white" stroke="#71808b"/><circle cx="87" cy="329" r="4" fill="#4a6175"/><text x="107" y="335" class="body">Tablet · via conexão disponível</text>
+<circle cx="87" cy="362" r="8" fill="white" stroke="#71808b"/><text x="107" y="368" class="body">Notebook · microfone interno</text>
+<text x="76" y="411" class="small">Disponibilidade e compatibilidade a validar.</text>
+<rect x="503" y="243" width="439" height="193" rx="4" class="card"/>
+<text x="523" y="273" class="label">Saída e volume</text>
+<rect x="523" y="292" width="397" height="35" rx="3" class="button"/><text x="535" y="315" class="body">Fones / alto-falantes do notebook</text><text x="897" y="314" class="body">▾</text>
+<text x="523" y="357" class="small">Volume</text><text x="876" y="357" class="body">60%</text>
+<rect x="523" y="377" width="347" height="6" rx="3" fill="#c5cbd1"/><rect x="523" y="377" width="208" height="6" rx="3" fill="#607b92"/><rect x="725" y="369" width="13" height="22" rx="2" fill="#e7ebee" stroke="#6b7884"/>
+<rect x="523" y="403" width="13" height="13" fill="white" stroke="#83909a"/><text x="544" y="415" class="small">Silenciar</text>
+<rect x="56" y="454" width="886" height="129" rx="4" class="card"/>
+<text x="76" y="484" class="label">Conexão com o tablet · scrcpy</text>
+<circle cx="83" cy="510" r="6" fill="#8b96a0"/><text x="100" y="516" class="body">Desconectado</text><text x="76" y="546" class="small">Dispositivo: nenhum selecionado · estado de exemplo</text>
+<rect x="645" y="487" width="126" height="37" rx="3" class="button"/><text x="666" y="511" class="body">Conectar</text>
+<rect x="785" y="487" width="135" height="37" rx="3" fill="#efefed" stroke="#c7cbd0"/><text x="802" y="511" class="body muted">Desconectar</text>
+<text x="645" y="551" class="small">Fluxo e suporte de áudio a validar.</text>
+<rect x="56" y="601" width="886" height="77" rx="4" class="card"/><text x="76" y="631" class="label">Restaurar perfil de áudio</text><text x="76" y="655" class="small">Proposta: recuperar a configuração anterior de entrada e saída.</text>
+<rect x="724" y="620" width="196" height="37" rx="3" class="button"/><text x="748" y="644" class="body">Restaurar perfil</text>
+<rect x="56" y="696" width="886" height="88" rx="4" fill="#e9ebed" stroke="#b6bec5"/>
+<text x="76" y="724" class="label">Bluetooth · transferência de arquivos</text><text x="76" y="751" class="body muted">Indisponível neste exemplo. Recurso separado dos controles de áudio.</text>
+<rect x="764" y="710" width="156" height="29" rx="4" fill="#dbe0e4"/><text x="785" y="730" class="small">INDISPONÍVEL</text>
+<text x="56" y="806" class="small">Revisar: organização, rótulos e prioridades. Nenhum controle está conectado a funções reais.</text>
+</svg>

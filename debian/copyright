@@ -1,0 +1,38 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: central-audio
+Upstream-Contact: https://github.com/mrmmx31/central-audio-bluetooth-android-linux/issues
+Source: https://github.com/mrmmx31/central-audio-bluetooth-android-linux
+
+Files: *
+Copyright: 2026 central-audio-bluetooth-android-linux contributors
+License: GPL-2
+Comment:
+ The project's own C, Bash, Python, packaging and workflow sources are
+ licensed under GPL-2.0-only. No third-party implementation is vendored.
+ .
+ The executable dynamically uses the system GTK2 and GLib libraries.
+ GTK2 is covered by LGPL version 2 or later, with some parts under LGPL
+ version 2.1 or later; GLib is covered by LGPL version 2.1 or later.
+ These libraries retain their original copyright and licensing notices.
+ See /usr/share/doc/libgtk2.0-0t64/copyright and
+ /usr/share/doc/libglib2.0-0t64/copyright for the installed library notices.
+ On Debian systems, the LGPL texts are in
+ /usr/share/common-licenses/LGPL-2 and /usr/share/common-licenses/LGPL-2.1.
+ .
+ Optional scrcpy, FFmpeg, adb and web browsers are separate system
+ programs, remain under their own licenses, and are not included in this
+ package. The program does not replace or restrict their update mechanisms.
+
+License: GPL-2
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 2 as published
+ by the Free Software Foundation.
+ .
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+ Public License for more details.
+ .
+ On Debian systems, the complete GNU General Public License version 2
+ can be found in /usr/share/common-licenses/GPL-2. The upstream source
+ distribution also includes the complete license in COPYING.
