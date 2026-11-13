@@ -485,7 +485,8 @@ class TabletSessionTests(unittest.TestCase):
 
     def test_observe_without_session_is_readonly_and_never_starts_or_probes_audio(self):
         with self.forbid_capture_boundaries(), mock.patch.object(
-                self.helper, "stop_process", side_effect=AssertionError("observer attempted to stop a process")):
+                self.helper, "stop_process", side_effect=AssertionError("observer attempted to stop a process")), \
+             mock.patch.object(self.helper, "observe_route", side_effect=AssertionError("no-session observer queried route")):
             self.invoke("observe")
             self.invoke("observe")
         self.assertFalse(self.state_directory.exists())
@@ -500,7 +501,8 @@ class TabletSessionTests(unittest.TestCase):
         data = self.supervision_state(records)
         log = Path(data["runtime"]) / "events.jsonl"
         with self.forbid_capture_boundaries(), mock.patch.object(
-                self.helper, "stop_process", side_effect=AssertionError("observer attempted to stop a process")):
+                self.helper, "stop_process", side_effect=AssertionError("observer attempted to stop a process")), \
+             mock.patch.object(self.helper, "observe_route", return_value="ready") as route_observer:
             self.invoke("observe")
             self.invoke("observe")
             first = [json.loads(line) for line in log.read_text().splitlines()]
@@ -515,8 +517,9 @@ class TabletSessionTests(unittest.TestCase):
             self.invoke("observe")
         entries = [json.loads(line) for line in log.read_text().splitlines()]
         self.assertEqual(len(entries), 2)
-        self.assertEqual(entries[0]["processes"], {"ffmpeg": True, "scrcpy": True, "privacy_latched": False})
-        self.assertEqual(entries[1]["processes"], {"ffmpeg": False, "scrcpy": False, "privacy_latched": False})
+        self.assertEqual(entries[0]["processes"], {"ffmpeg": True, "scrcpy": True, "privacy_latched": False, "route": "ready"})
+        self.assertEqual(entries[1]["processes"], {"ffmpeg": False, "scrcpy": False, "privacy_latched": False, "route": "not_running"})
+        self.assertEqual(route_observer.call_args_list, [mock.call(consumer.pid), mock.call(consumer.pid)])
         for event in entries:
             self.assertEqual(set(event), {"time_utc", "processes", "automatic_restart", "call_mute"})
             self.assertIs(event["automatic_restart"], False)
@@ -608,11 +611,97 @@ class TabletSessionTests(unittest.TestCase):
             self.invoke("observe")
         entries = [json.loads(line) for line in (Path(data["runtime"]) / "events.jsonl").read_text().splitlines()]
         self.assertEqual(len(entries), 2)
-        self.assertEqual(entries[0]["processes"], {"privacy_latched": False})
-        self.assertEqual(entries[1]["processes"], {"privacy_latched": True})
+        self.assertEqual(entries[0]["processes"], {"privacy_latched": False, "route": "not_running"})
+        self.assertEqual(entries[1]["processes"], {"privacy_latched": True, "route": "paused"})
         self.assertTrue(all(event["automatic_restart"] is False and event["call_mute"] == "unknown" for event in entries))
         self.assertIn("captura pausada", stdout)
         self.assertEqual(self.events(), [])
+
+    def test_live_observer_records_route_changes_without_restarting_processes(self):
+        consumer, stamp = self.owned_sleeper()
+        data = self.supervision_state([{"pid": consumer.pid, "start": stamp, "role": "ffmpeg"}])
+        with self.forbid_capture_boundaries(), mock.patch.object(
+                self.helper, "observe_route", side_effect=["ready", "missing", "unknown", "unknown"]) as route:
+            for _ in range(4):
+                self.invoke("observe")
+        entries = [json.loads(line) for line in (Path(data["runtime"]) / "events.jsonl").read_text().splitlines()]
+        self.assertEqual([event["processes"]["route"] for event in entries], ["ready", "missing", "unknown"])
+        self.assertTrue(all(event["processes"]["ffmpeg"] for event in entries))
+        self.assertTrue(all(event["automatic_restart"] is False and event["call_mute"] == "unknown" for event in entries))
+        self.assertEqual(route.call_args_list, [mock.call(consumer.pid)] * 4)
+        self.assertIsNone(consumer.poll())
+        self.assertEqual(len(self.children), 1)
+        self.assertEqual(self.events(), [])
+
+    def test_privacy_latched_observer_does_not_query_route_even_with_live_consumer(self):
+        consumer, stamp = self.owned_sleeper()
+        data = self.supervision_state([{"pid": consumer.pid, "start": stamp, "role": "ffmpeg"}])
+        data["privacy_latched"] = True
+        self.helper.save_state(data)
+        with self.forbid_capture_boundaries(), mock.patch.object(
+                self.helper, "observe_route", side_effect=AssertionError("paused observer queried the audio graph")):
+            self.invoke("observe")
+            self.invoke("observe")
+        entries = [json.loads(line) for line in (Path(data["runtime"]) / "events.jsonl").read_text().splitlines()]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["processes"], {"ffmpeg": True, "privacy_latched": True, "route": "paused"})
+        self.assertIsNone(consumer.poll())
+        self.assertEqual(self.events(), [])
+
+    def strict_observe_route(self, responses):
+        """Permit exactly the documented metadata queries with one-second bounds."""
+        queries = [("pactl", "list", "short", "sinks"),
+                   ("pactl", "-f", "json", "list", "sink-inputs"),
+                   ("pactl", "list", "short", "sources")]
+        calls = []
+        def backend(argv, *, timeout):
+            self.assertLess(len(calls), len(queries), "observer made an extra external call")
+            self.assertEqual(tuple(argv), queries[len(calls)], "observer attempted an unauthorized command")
+            self.assertEqual(timeout, 1, "metadata queries must remain bounded to one second")
+            response = responses[len(calls)]
+            calls.append(tuple(argv))
+            if isinstance(response, Exception):
+                raise response
+            return response
+        with self.forbid_capture_boundaries(), mock.patch.object(self.helper, "run", side_effect=backend), \
+             mock.patch.object(self.helper.subprocess, "Popen", side_effect=AssertionError("metadata observer attempted Popen")):
+            result = self.helper.observe_route(123)
+        self.assertEqual(self.events(), [])
+        self.assertEqual(self.children, [])
+        return result, calls
+
+    def test_observe_route_matches_pid_bus_and_source_with_only_three_queries(self):
+        sinks = f"1\tinternal\tfake\n30\t{BUS}\tfake\n"
+        sources = f"32\t{SOURCE}\tfake\n"
+        entries = [{"sink": 30, "properties": {"application.process.id": "123"}}]
+        cases = [("ready", sinks, entries, sources, "ready"),
+                 ("wrong sink", sinks, [{"sink": 99, "properties": {"application.process.id": "123"}}], sources, "missing"),
+                 ("wrong pid", sinks, [{"sink": 30, "properties": {"application.process.id": "999"}}], sources, "missing"),
+                 ("source gone", sinks, entries, "2\tinternal.monitor\tfake\n", "missing"),
+                 ("bus gone", "1\tinternal\tfake\n", entries, sources, "missing"),
+                 ("stream gone", sinks, [], sources, "missing")]
+        for label, sink_rows, streams, source_rows, expected in cases:
+            with self.subTest(case=label):
+                result, calls = self.strict_observe_route([sink_rows, json.dumps(streams), source_rows])
+                self.assertEqual(result, expected)
+                self.assertEqual(len(calls), 3)
+
+    def test_observe_route_query_failures_return_unknown_without_other_actions(self):
+        baseline = [f"30\t{BUS}\tfake\n", "[]", f"32\t{SOURCE}\tfake\n"]
+        for failed_query in range(3):
+            with self.subTest(query=failed_query):
+                responses = baseline.copy()
+                responses[failed_query] = self.helper.SessionError("injected metadata query timeout or refusal")
+                result, calls = self.strict_observe_route(responses)
+                self.assertEqual(result, "unknown")
+                self.assertEqual(len(calls), failed_query + 1)
+
+    def test_observe_route_malformed_metadata_returns_unknown(self):
+        for payload in ("{truncated", "null", "{}", '{"unexpected":"schema"}', '[null]', '["unexpected"]',
+                        '[{"sink":30,"properties":null}]', '[{"sink":30,"properties":"unexpected"}]'):
+            with self.subTest(payload=payload):
+                result, _ = self.strict_observe_route([f"30\t{BUS}\tfake\n", payload, f"32\t{SOURCE}\tfake\n"])
+                self.assertEqual(result, "unknown")
 
 
 if __name__ == "__main__":

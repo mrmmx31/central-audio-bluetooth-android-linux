@@ -405,6 +405,26 @@ def privacy_pause():
     print("Captura própria pausada. Fontes e rotas preservadas; nenhum mute foi removido.")
 
 
+def observe_route(pid):
+    try:
+        sinks = run(["pactl", "list", "short", "sinks"], timeout=1)
+        index = next((row.split("\t")[0] for row in sinks.splitlines()
+                      if len(row.split("\t")) >= 2 and row.split("\t")[1] == BUS), None)
+        entries = json.loads(run(["pactl", "-f", "json", "list", "sink-inputs"], timeout=1))
+        if not isinstance(entries, list) or any(not isinstance(entry, dict) or
+                not isinstance(entry.get("properties", {}), dict) for entry in entries):
+            return "unknown"
+        sources = run(["pactl", "list", "short", "sources"], timeout=1)
+        source_exists = any(len(row.split("\t")) >= 2 and row.split("\t")[1] == SOURCE
+                            for row in sources.splitlines())
+        ready = source_exists and any(str(entry.get("sink")) == index and
+                str(entry.get("properties", {}).get("application.process.id")) == str(pid)
+                for entry in entries)
+        return "ready" if ready else "missing"
+    except (SessionError, ValueError, TypeError, AttributeError):
+        return "unknown"
+
+
 def observe():
     data = load_state()
     if not data:
@@ -413,6 +433,13 @@ def observe():
     observation = {process["role"]: identity(process["pid"]) == process["start"]
                    for process in data["processes"]}
     observation["privacy_latched"] = bool(data.get("privacy_latched"))
+    ffmpeg = next((process for process in data["processes"] if process["role"] == "ffmpeg"), None)
+    if observation["privacy_latched"]:
+        observation["route"] = "paused"
+    elif ffmpeg and observation.get("ffmpeg"):
+        observation["route"] = observe_route(ffmpeg["pid"])
+    else:
+        observation["route"] = "not_running"
     if observation != data.get("last_observed"):
         event = {"time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                  "processes": observation, "automatic_restart": False,
@@ -435,6 +462,12 @@ def status():
         print("Privacidade: pausa solicitada." if live else "Privacidade: captura pausada.")
     else:
         print("Estado: " + ("em execução; sinal de voz ainda requer teste." if live == 2 else "captura interrompida; causa ainda precisa de diagnóstico."))
+    route = data.get("last_observed", {}).get("route")
+    if route:
+        labels = {"ready": "ligação própria observada", "missing": "ligação própria não encontrada",
+                  "unknown": "consulta indisponível", "paused": "pausada por privacidade",
+                  "not_running": "produtor interrompido"}
+        print("Rota: " + labels.get(route, "estado desconhecido") + ".")
     print("Reinício automático bloqueado: mute da chamada desconhecido.")
 
 

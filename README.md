@@ -93,7 +93,7 @@ O bloco OBEX é separado dos controles de áudio. Consulta ferramentas e serviç
 
 ## Supervisão e privacidade
 
-Enquanto a janela estiver aberta, a central acompanha seus processos a cada três segundos e registra mudanças em um log privado de eventos. A presença ou ausência de um processo não determina a causa de uma queda; o log de erro da sessão deve ser analisado antes de atribuí-la ao ADB, Wi-Fi ou áudio.
+Enquanto a janela estiver aberta, a central acompanha seus processos e consulta a ligação própria FFmpeg → barramento → fonte a cada três segundos, registrando mudanças em um log privado de eventos. A introspecção consulta metadados, sem ler amostras do microfone. A presença ou ausência de um processo ou ligação não determina a causa de uma queda; o log de erro da sessão deve ser analisado antes de atribuí-la ao ADB, Wi-Fi ou áudio.
 
 **Pausar captura · privacidade** encerra explicitamente apenas os produtores próprios, mesmo se houver uma chamada usando a fonte. Mantém as fontes e rotas e não desmuta dispositivos. A pausa trava qualquer retomada implícita: depois de encerrar a captura da chamada, desconecte a sessão e use Conectar explicitamente para começar outra.
 
